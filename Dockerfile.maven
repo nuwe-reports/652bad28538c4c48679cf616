@@ -1,37 +1,22 @@
-# Primer paso: Ejecutar los tests JUnit
-# Crear una imagen con Maven y Java 8 para ejecutar los tests
-FROM maven:4.0.0-openjdk-8-slim AS test
-# Crear un directorio de trabajo, appTest (Se le atribuye este nombre para mejor comprension posterior)
-WORKDIR /appTest
-# Copiamos nuestro proyecto al completo dentro del directorio de trabajo que acabamos de crear
-COPY . /appTest
-# Ejecutamos los test JUnit con Maven que se encuentran dentro de nuestro contenedor
+# Stage 1: Crear el contenedor del servicio maven
+FROM maven:latest as builder
+# Copiar el codigo fuente de nuestro proyecto al contenedor
+COPY src /app/src
+COPY pom.xml /app/pom.xml
+# Compilar los test y correrlos para verificar que hayan pasado correctamente
+WORKDIR /app
 RUN mvn clean test
-
-# Segundo paso: Construir y empaquetar el microservicio
-# Creamos una nueva imagen con Maven y Java 8 para construir y empaquetar el microservicio
-FROM maven:4.0.0-openjdk-8 AS builder
-# Creamos un directorio de trabajo, appBuild (Se le atribuye este nombre para mejor comprension)
-WORKDIR /appBuild
-# Copiamos el directorio al completo que se encuentra dentro  de nuestro contenedor (appTest) al directorio de trabajo que acabamos de crear
-COPY --from=test /appTest /appBuild
-# Ejecutamos el siguiente comando para construir y empaquetar el microservicio sin ejecutar los tests JUnit ya que estos ya se han ejecutado en el paso anterior
-RUN mvn package -DskipTests
-
-# Tercer paso: Ejecutar el microservicio
-# Creamos una nueva imagen con Java 8 para ejecutar el microservicio
-FROM openjdk:8-jre-slim
-# Creamos un directorio de trabajo, appRun (Se le atribuye este nombre para mejor comprension)
-WORKDIR /appRun
-# Recuperamos el paquete .war ya construido de nuestro proyecto y lo copiamos dentro del directorio de trabajo que acabamos de crear
-COPY --from=builder /appBuild/target/*.war /appRun/accenture-techhub-0.0.1-SNAPSHOT.war
-
-# Creamos las variables de entorno para la conexión con la base de datos
+# Empaquetar el codigo fuente tan solo si los test pasaron correctamente
+RUN mvn package
+# Stage 2: Crear el contenedor del servicio final utilizando el jar generado previamente
+FROM openjdk:8
+# Copiar el war generado en el stage al contenedor para despues poder levantar el servicio
+COPY --from=builder /app/target/accenture-techhub-0.0.1-SNAPSHOT.war /app/accenture-techhub.war
+# Exponemos el puerto 8080 para que el servicio pueda ser accedido desde afuera del contenedor
+EXPOSE 8080
+# Creamos las variables de entorno para la conexion a la base de datos
 ENV SPRING_DATASOURCE_USERNAME=root
 ENV SPRING_DATASOURCE_PASSWORD=root
 ENV SPRING_DATASOURCE_URL=jdbc:mysql://mysql-container:3306/accwe-hospital
-
-# Exponemos el puerto 8080 para que el microservicio pueda ser accedido desde fuera del contenedor
-EXPOSE 8080
-# Ejecutamos el microservicio con el siguiente comando
-CMD ["java", "-jar", "accenture-techhub-0.0.1-SNAPSHOT.war"]
+# Esperamos a que el contenedor de mysql este levantado y luego levantamos el microservicio
+CMD ["java", "-jar", "sleep 5 & /app/accenture-techhub.war"]
