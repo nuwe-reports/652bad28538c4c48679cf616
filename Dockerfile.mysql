@@ -1,0 +1,11 @@
+# Creamos un contenedor de mysql con la imagen de mysql 5.7
+From mysql:5.7
+# Definimos las variables de entorno de nuestra bbdd
+ENV MYSQL_ROOT_PASSWORD=root
+ENV MYSQL_DATABASE=accwe-hospital
+# Copiamos el script de inicialización de la bbdd
+COPY ./initialize.sql /docker-entrypoint-initdb.d/
+# Exponemos el puerto 3306
+EXPOSE 3306
+# Definimos el volumen de la bbdd
+VOLUME /var/lib/mysql
